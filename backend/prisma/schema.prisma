@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Raw imported transactions from a CSV upload (Phase 2).
+model Transaction {
+  id            Int      @id @default(autoincrement())
+  importBatchId String   @map("import_batch_id") @db.Uuid
+  txnDate       DateTime @map("txn_date") @db.Date
+  merchantRaw   String   @map("merchant_raw")
+  merchantNorm  String   @map("merchant_norm")
+  amount        Decimal  @map("amount") @db.Decimal(10, 2)
+  category      String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([importBatchId])
+  @@map("transactions")
+}
+
+// Rule-based category keywords (seed data). No AI categorization.
+model CategoryRule {
+  id       Int    @id @default(autoincrement())
+  keyword  String
+  category String
+
+  @@map("category_rules")
+}
+
+// Cached/detected recurring subscriptions (populated by SQL in Phase 3).
+model DetectedSubscription {
+  id              Int       @id @default(autoincrement())
+  importBatchId   String    @map("import_batch_id") @db.Uuid
+  merchantNorm    String    @map("merchant_norm")
+  avgAmount       Decimal?  @map("avg_amount") @db.Decimal(10, 2)
+  intervalDays    Int?      @map("interval_days")
+  occurrences     Int?
+  firstSeen       DateTime? @map("first_seen") @db.Date
+  lastSeen        DateTime? @map("last_seen") @db.Date
+  priceIncreased  Boolean   @default(false) @map("price_increased")
+  projectedAnnual Decimal?  @map("projected_annual") @db.Decimal(10, 2)
+
+  @@index([importBatchId])
+  @@map("detected_subscriptions")
+}

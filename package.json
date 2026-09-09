@@ -1,0 +1,17 @@
+{
+  "name": "ghostcharges",
+  "private": true,
+  "description": "Recurring-charge and subscription leak detector",
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run db:migrate --prefix backend",
+    "db:seed": "npm run db:seed --prefix backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

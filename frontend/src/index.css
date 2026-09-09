@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+  --color-ink: #0b0d10;
+  --color-panel: #14181d;
+  --color-line: #2a3138;
+  --color-mute: #8b949e;
+  --color-charge: #7dffa8;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-ink);
+  color: #e8edf2;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}

@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ghostcharges-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ghostcharges
+      POSTGRES_PASSWORD: ghostcharges
+      POSTGRES_DB: ghostcharges
+    ports:
+      - "55432:5432"
+    volumes:
+      - ghostcharges_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ghostcharges -d ghostcharges"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ghostcharges_pgdata:

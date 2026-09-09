@@ -1,0 +1,28 @@
+node_modules/
+dist/
+dist-ssr/
+*.local
+.env
+.env.*.local
+backend/.env
+frontend/.env
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Vite
+frontend/dist/
+*.tsbuildinfo
