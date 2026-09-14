@@ -75,8 +75,8 @@ export function HomePage() {
           Scaffold is live
         </h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-mute">
-          Backend, frontend, and Postgres should talk to each other here. CSV
-          import and SQL detection arrive in the next phases.
+          Backend, frontend, and Postgres should talk to each other here. Use
+          Upload to import a bank CSV. SQL detection arrives in Phase 3.
         </p>
       </div>
 

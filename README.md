@@ -9,8 +9,23 @@ detection. See `plan.md` and `phases.md`.
 
 ## Status
 
-Phase 1 scaffold is in place: backend, frontend, and Postgres. CSV import,
-detection queries, and the dashboard come next.
+Phase 2: CSV import works. Detection queries and the dashboard come next.
+
+## CSV format
+
+One bank export format for now. Header row required:
+
+```
+date,description,amount
+2026-01-05,NETFLIX.COM,17.99
+```
+
+- `date`: `YYYY-MM-DD` (also accepts `M/D/YYYY`)
+- `description`: merchant as the bank printed it
+- `amount`: charge amount (signs and `$` are stripped; stored as a positive number)
+- `category` is optional; otherwise we match `category_rules` keywords
+
+Download a realistic sample from `GET /sample.csv` or the Upload page.
 
 ## Tech stack
 

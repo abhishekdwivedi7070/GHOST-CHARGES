@@ -1,7 +1,11 @@
 import "dotenv/config";
 import cors from "cors";
 import express from "express";
+import type { NextFunction, Request, Response } from "express";
+import multer from "multer";
 import { pool, query } from "./db.js";
+import { HttpError } from "./http.js";
+import { uploadRouter } from "./routes/upload.js";
 
 const port = Number(process.env.PORT) || 3001;
 const frontendOrigin = process.env.FRONTEND_ORIGIN ?? "http://localhost:5173";
@@ -10,6 +14,7 @@ const app = express();
 
 app.use(cors({ origin: frontendOrigin }));
 app.use(express.json());
+app.use(uploadRouter);
 
 app.get("/health", async (_req, res) => {
   try {
@@ -38,9 +43,31 @@ app.get("/health", async (_req, res) => {
 app.get("/", (_req, res) => {
   res.json({
     name: "GhostCharges API",
-    phase: 1,
+    phase: 2,
     health: "/health",
+    upload: "POST /upload",
+    sample: "GET /sample.csv",
   });
+});
+
+app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  if (error instanceof HttpError) {
+    res.status(error.status).json({ error: error.message });
+    return;
+  }
+
+  if (error instanceof multer.MulterError) {
+    const message =
+      error.code === "LIMIT_FILE_SIZE"
+        ? "CSV is too large. Max size is 5MB."
+        : error.message;
+    res.status(400).json({ error: message });
+    return;
+  }
+
+  const message = error instanceof Error ? error.message : "Internal server error";
+  console.error(error);
+  res.status(500).json({ error: message });
 });
 
 const server = app.listen(port, () => {

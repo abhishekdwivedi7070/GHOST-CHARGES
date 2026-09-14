@@ -24,6 +24,9 @@ export function AppLayout() {
             <NavLink to="/" className={linkClass} end>
               Status
             </NavLink>
+            <NavLink to="/upload" className={linkClass}>
+              Upload
+            </NavLink>
             <NavLink to="/demo" className={linkClass}>
               Demo
             </NavLink>

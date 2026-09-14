@@ -18,3 +18,38 @@ export async function fetchHealth(): Promise<HealthResponse> {
 
   return data;
 }
+
+export type UploadPreview = {
+  merchantRaw: string;
+  merchantNorm: string;
+  category: string | null;
+  count: number;
+};
+
+export type UploadResponse = {
+  importBatchId: string;
+  rowsReceived: number;
+  rowsInserted: number;
+  rowsSkipped: number;
+  skipped: { line: number; reason: string }[];
+  preview: UploadPreview[];
+};
+
+export const SAMPLE_CSV_URL = `${API_URL}/sample.csv`;
+
+export async function uploadCsv(file: File): Promise<UploadResponse> {
+  const body = new FormData();
+  body.append("file", file);
+
+  const response = await fetch(`${API_URL}/upload`, {
+    method: "POST",
+    body,
+  });
+
+  const data = (await response.json()) as UploadResponse & { error?: string };
+  if (!response.ok) {
+    throw new Error(data.error ?? `Upload failed (${response.status})`);
+  }
+
+  return data;
+}
