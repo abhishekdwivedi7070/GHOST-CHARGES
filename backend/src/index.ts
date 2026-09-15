@@ -5,6 +5,7 @@ import type { NextFunction, Request, Response } from "express";
 import multer from "multer";
 import { pool, query } from "./db.js";
 import { HttpError } from "./http.js";
+import { subscriptionsRouter } from "./routes/subscriptions.js";
 import { uploadRouter } from "./routes/upload.js";
 
 const port = Number(process.env.PORT) || 3001;
@@ -15,6 +16,7 @@ const app = express();
 app.use(cors({ origin: frontendOrigin }));
 app.use(express.json());
 app.use(uploadRouter);
+app.use(subscriptionsRouter);
 
 app.get("/health", async (_req, res) => {
   try {
@@ -43,10 +45,11 @@ app.get("/health", async (_req, res) => {
 app.get("/", (_req, res) => {
   res.json({
     name: "GhostCharges API",
-    phase: 2,
+    phase: 3,
     health: "/health",
     upload: "POST /upload",
     sample: "GET /sample.csv",
+    subscriptions: "GET /subscriptions/:batchId",
   });
 });
 

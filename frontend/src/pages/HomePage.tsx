@@ -76,7 +76,7 @@ export function HomePage() {
         </h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-mute">
           Backend, frontend, and Postgres should talk to each other here. Use
-          Upload to import a bank CSV. SQL detection arrives in Phase 3.
+          Upload to import a bank CSV — SQL detection runs automatically.
         </p>
       </div>
 

@@ -9,7 +9,19 @@ detection. See `plan.md` and `phases.md`.
 
 ## Status
 
-Phase 2: CSV import works. Detection queries and the dashboard come next.
+Phase 3: CSV import plus SQL detection (recurring charges, price creep, projected
+annual cost). Dashboard UI comes next.
+
+## How detection works
+
+After each upload, Postgres runs window functions (`LAG`) and CTEs:
+
+1. Group charges by cleaned merchant name
+2. Measure days between charges; keep merchants with a stable interval (`STDDEV` of gaps < 5) and at least 3 charges
+3. Flag price creep when a later charge is higher than the previous one
+4. Project annual cost as `avg_amount * (365 / interval_days)`
+
+Results are stored in `detected_subscriptions`. AI is not used.
 
 ## CSV format
 

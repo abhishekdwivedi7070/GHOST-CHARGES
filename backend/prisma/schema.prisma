@@ -44,6 +44,7 @@ model DetectedSubscription {
   priceIncreased  Boolean   @default(false) @map("price_increased")
   projectedAnnual Decimal?  @map("projected_annual") @db.Decimal(10, 2)
 
+  @@unique([importBatchId, merchantNorm])
   @@index([importBatchId])
   @@map("detected_subscriptions")
 }

@@ -69,6 +69,7 @@ uploadRouter.post("/upload", (req, res, next) => {
           rowsSkipped: parsed.skipped.length,
           skipped: parsed.skipped.slice(0, 20),
           preview: inserted.preview,
+          subscriptions: inserted.subscriptions,
         });
       } catch (caught) {
         next(caught);

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { runDetection, type DetectedSubscription } from "../detect/detectSubscriptions.js";
 import { pool } from "../db.js";
 import { matchCategory, type CategoryRule } from "./categorize.js";
 import type { ParsedTransaction } from "./parseCsv.js";
@@ -14,6 +15,7 @@ export type InsertResult = {
   importBatchId: string;
   rowsInserted: number;
   preview: InsertedPreview[];
+  subscriptions: DetectedSubscription[];
 };
 
 const CHUNK = 400;
@@ -62,8 +64,6 @@ export async function insertTransactions(rows: ParsedTransaction[]): Promise<Ins
       );
     }
 
-    await client.query("COMMIT");
-
     const counts = new Map<string, InsertedPreview>();
     for (const row of prepared) {
       const key = row.merchantNorm;
@@ -81,11 +81,15 @@ export async function insertTransactions(rows: ParsedTransaction[]): Promise<Ins
     }
 
     const preview = [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 12);
+    const subscriptions = await runDetection(importBatchId, client);
+
+    await client.query("COMMIT");
 
     return {
       importBatchId,
       rowsInserted: prepared.length,
       preview,
+      subscriptions,
     };
   } catch (error) {
     await client.query("ROLLBACK");

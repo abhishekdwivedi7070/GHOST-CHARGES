@@ -2,8 +2,73 @@ import { useState, type FormEvent } from "react";
 import {
   SAMPLE_CSV_URL,
   uploadCsv,
+  type DetectedSubscription,
   type UploadResponse,
 } from "../lib/api";
+
+const money = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+});
+
+function SubscriptionsTable({ rows }: { rows: DetectedSubscription[] }) {
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-xl border border-line bg-panel px-5 py-4 text-sm text-mute">
+        No recurring subscriptions detected in this batch.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-line bg-panel">
+      <div className="border-b border-line px-5 py-4">
+        <p className="text-sm text-white">Detected subscriptions</p>
+        <p className="mt-1 font-mono text-xs text-mute">
+          {rows.length} merchants · window functions, LAG, CTEs — no AI
+        </p>
+      </div>
+      <table className="w-full text-left text-sm">
+        <thead className="font-mono text-xs text-mute">
+          <tr>
+            <th className="px-5 py-3 font-normal">Merchant</th>
+            <th className="px-5 py-3 font-normal">Avg</th>
+            <th className="px-5 py-3 font-normal">Every</th>
+            <th className="px-5 py-3 font-normal">Times</th>
+            <th className="px-5 py-3 font-normal">Annual</th>
+            <th className="px-5 py-3 font-normal">Creep</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.merchantNorm} className="border-t border-line">
+              <td className="px-5 py-3 text-white">{row.merchantNorm}</td>
+              <td className="px-5 py-3 font-mono text-mute">
+                {money.format(row.avgAmount)}
+              </td>
+              <td className="px-5 py-3 font-mono text-mute">
+                {row.intervalDays}d
+              </td>
+              <td className="px-5 py-3 font-mono text-mute">{row.occurrences}</td>
+              <td className="px-5 py-3 font-mono text-white">
+                {money.format(row.projectedAnnual)}
+              </td>
+              <td className="px-5 py-3">
+                {row.priceIncreased ? (
+                  <span className="rounded-full bg-red-500/15 px-2 py-0.5 font-mono text-xs text-red-300">
+                    up
+                  </span>
+                ) : (
+                  <span className="font-mono text-xs text-mute">—</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -35,7 +100,7 @@ export function UploadPage() {
     <section className="space-y-8">
       <div>
         <p className="font-mono text-xs tracking-[0.18em] text-charge uppercase">
-          Phase 2
+          Phase 3
         </p>
         <h1 className="mt-2 text-3xl font-medium tracking-tight text-white">
           Upload a statement
@@ -43,8 +108,8 @@ export function UploadPage() {
         <p className="mt-3 max-w-xl text-sm leading-6 text-mute">
           One format for now: <code className="text-white/80">date</code>,{" "}
           <code className="text-white/80">description</code>,{" "}
-          <code className="text-white/80">amount</code>. Merchants are cleaned
-          with rules, then stored. Detection SQL comes in Phase 3.
+          <code className="text-white/80">amount</code>. After import, SQL
+          detects recurring charges, price increases, and projected annual cost.
         </p>
       </div>
 
@@ -90,36 +155,39 @@ export function UploadPage() {
       ) : null}
 
       {result ? (
-        <div className="overflow-hidden rounded-xl border border-line bg-panel">
-          <div className="border-b border-line px-5 py-4">
-            <p className="text-sm text-white">
-              Inserted {result.rowsInserted} rows
-              {result.rowsSkipped > 0 ? ` · skipped ${result.rowsSkipped}` : ""}
-            </p>
-            <p className="mt-1 font-mono text-xs text-mute">
-              batch {result.importBatchId}
-            </p>
-          </div>
-          <table className="w-full text-left text-sm">
-            <thead className="font-mono text-xs text-mute">
-              <tr>
-                <th className="px-5 py-3 font-normal">Raw</th>
-                <th className="px-5 py-3 font-normal">Normalized</th>
-                <th className="px-5 py-3 font-normal">Category</th>
-                <th className="px-5 py-3 font-normal">Rows</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.preview.map((row) => (
-                <tr key={row.merchantNorm} className="border-t border-line">
-                  <td className="px-5 py-3 text-mute">{row.merchantRaw}</td>
-                  <td className="px-5 py-3 text-white">{row.merchantNorm}</td>
-                  <td className="px-5 py-3 text-mute">{row.category ?? "—"}</td>
-                  <td className="px-5 py-3 font-mono text-mute">{row.count}</td>
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-xl border border-line bg-panel">
+            <div className="border-b border-line px-5 py-4">
+              <p className="text-sm text-white">
+                Inserted {result.rowsInserted} rows
+                {result.rowsSkipped > 0 ? ` · skipped ${result.rowsSkipped}` : ""}
+              </p>
+              <p className="mt-1 font-mono text-xs text-mute">
+                batch {result.importBatchId}
+              </p>
+            </div>
+            <table className="w-full text-left text-sm">
+              <thead className="font-mono text-xs text-mute">
+                <tr>
+                  <th className="px-5 py-3 font-normal">Raw</th>
+                  <th className="px-5 py-3 font-normal">Normalized</th>
+                  <th className="px-5 py-3 font-normal">Category</th>
+                  <th className="px-5 py-3 font-normal">Rows</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {result.preview.map((row) => (
+                  <tr key={row.merchantNorm} className="border-t border-line">
+                    <td className="px-5 py-3 text-mute">{row.merchantRaw}</td>
+                    <td className="px-5 py-3 text-white">{row.merchantNorm}</td>
+                    <td className="px-5 py-3 text-mute">{row.category ?? "—"}</td>
+                    <td className="px-5 py-3 font-mono text-mute">{row.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <SubscriptionsTable rows={result.subscriptions} />
         </div>
       ) : null}
     </section>

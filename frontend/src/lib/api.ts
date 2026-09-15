@@ -26,6 +26,17 @@ export type UploadPreview = {
   count: number;
 };
 
+export type DetectedSubscription = {
+  merchantNorm: string;
+  avgAmount: number;
+  intervalDays: number;
+  occurrences: number;
+  firstSeen: string;
+  lastSeen: string;
+  priceIncreased: boolean;
+  projectedAnnual: number;
+};
+
 export type UploadResponse = {
   importBatchId: string;
   rowsReceived: number;
@@ -33,6 +44,7 @@ export type UploadResponse = {
   rowsSkipped: number;
   skipped: { line: number; reason: string }[];
   preview: UploadPreview[];
+  subscriptions: DetectedSubscription[];
 };
 
 export const SAMPLE_CSV_URL = `${API_URL}/sample.csv`;
