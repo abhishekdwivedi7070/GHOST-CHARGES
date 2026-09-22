@@ -1,80 +1,29 @@
-import { useState, type FormEvent } from "react";
-import {
-  SAMPLE_CSV_URL,
-  uploadCsv,
-  type DetectedSubscription,
-  type UploadResponse,
-} from "../lib/api";
-
-const money = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-});
-
-function SubscriptionsTable({ rows }: { rows: DetectedSubscription[] }) {
-  if (rows.length === 0) {
-    return (
-      <p className="rounded-xl border border-line bg-panel px-5 py-4 text-sm text-mute">
-        No recurring subscriptions detected in this batch.
-      </p>
-    );
-  }
-
-  return (
-    <div className="overflow-hidden rounded-xl border border-line bg-panel">
-      <div className="border-b border-line px-5 py-4">
-        <p className="text-sm text-white">Detected subscriptions</p>
-        <p className="mt-1 font-mono text-xs text-mute">
-          {rows.length} merchants · window functions, LAG, CTEs — no AI
-        </p>
-      </div>
-      <table className="w-full text-left text-sm">
-        <thead className="font-mono text-xs text-mute">
-          <tr>
-            <th className="px-5 py-3 font-normal">Merchant</th>
-            <th className="px-5 py-3 font-normal">Avg</th>
-            <th className="px-5 py-3 font-normal">Every</th>
-            <th className="px-5 py-3 font-normal">Times</th>
-            <th className="px-5 py-3 font-normal">Annual</th>
-            <th className="px-5 py-3 font-normal">Creep</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.merchantNorm} className="border-t border-line">
-              <td className="px-5 py-3 text-white">{row.merchantNorm}</td>
-              <td className="px-5 py-3 font-mono text-mute">
-                {money.format(row.avgAmount)}
-              </td>
-              <td className="px-5 py-3 font-mono text-mute">
-                {row.intervalDays}d
-              </td>
-              <td className="px-5 py-3 font-mono text-mute">{row.occurrences}</td>
-              <td className="px-5 py-3 font-mono text-white">
-                {money.format(row.projectedAnnual)}
-              </td>
-              <td className="px-5 py-3">
-                {row.priceIncreased ? (
-                  <span className="rounded-full bg-red-500/15 px-2 py-0.5 font-mono text-xs text-red-300">
-                    up
-                  </span>
-                ) : (
-                  <span className="font-mono text-xs text-mute">—</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+import { useState, type DragEvent, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { SAMPLE_CSV_URL, uploadCsv } from "../lib/api";
 
 export function UploadPage() {
+  const navigate = useNavigate();
   const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<UploadResponse | null>(null);
+
+  function takeFile(next: File | null) {
+    setFile(next);
+    setError(null);
+  }
+
+  function onDrop(event: DragEvent) {
+    event.preventDefault();
+    setDragOver(false);
+    const next = event.dataTransfer.files[0];
+    if (next && !next.name.toLowerCase().endsWith(".csv")) {
+      setError("Please drop a .csv file.");
+      return;
+    }
+    takeFile(next ?? null);
+  }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -85,10 +34,12 @@ export function UploadPage() {
 
     setBusy(true);
     setError(null);
-    setResult(null);
 
     try {
-      setResult(await uploadCsv(file));
+      const result = await uploadCsv(file);
+      navigate(`/results/${result.importBatchId}`, {
+        state: { subscriptions: result.subscriptions, rowsInserted: result.rowsInserted },
+      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Upload failed");
     } finally {
@@ -97,54 +48,59 @@ export function UploadPage() {
   }
 
   return (
-    <section className="space-y-8">
+    <section className="mx-auto max-w-xl space-y-8">
       <div>
-        <p className="font-mono text-xs tracking-[0.18em] text-charge uppercase">
-          Phase 3
-        </p>
-        <h1 className="mt-2 text-3xl font-medium tracking-tight text-white">
-          Upload a statement
-        </h1>
-        <p className="mt-3 max-w-xl text-sm leading-6 text-mute">
-          One format for now: <code className="text-white/80">date</code>,{" "}
+        <h1 className="text-3xl font-medium tracking-tight text-white">Upload a statement</h1>
+        <p className="mt-3 text-sm leading-6 text-mute">
+          Columns: <code className="text-white/80">date</code>,{" "}
           <code className="text-white/80">description</code>,{" "}
-          <code className="text-white/80">amount</code>. After import, SQL
-          detects recurring charges, price increases, and projected annual cost.
+          <code className="text-white/80">amount</code>. Detection runs in
+          Postgres after import.
         </p>
       </div>
 
-      <form
-        onSubmit={(event) => void onSubmit(event)}
-        className="space-y-4 rounded-xl border border-line bg-panel p-5"
-      >
-        <label className="block">
-          <span className="text-sm text-white">CSV file</span>
+      <form onSubmit={(event) => void onSubmit(event)} className="space-y-4">
+        <label
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          className={[
+            "flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed px-6 py-12 text-center transition-colors",
+            dragOver ? "border-charge bg-charge/10" : "border-line bg-panel hover:border-white/20",
+          ].join(" ")}
+        >
           <input
             type="file"
             accept=".csv,text/csv"
-            onChange={(event) => {
-              setFile(event.target.files?.[0] ?? null);
-              setResult(null);
-              setError(null);
-            }}
-            className="mt-2 block w-full text-sm text-mute file:mr-3 file:rounded-md file:border-0 file:bg-white/10 file:px-3 file:py-1.5 file:text-sm file:text-white"
+            className="sr-only"
+            onChange={(event) => takeFile(event.target.files?.[0] ?? null)}
           />
+          <p className="text-sm text-white">
+            {file ? file.name : "Drop a CSV here, or click to browse"}
+          </p>
+          <p className="mt-1 text-xs text-mute">Max 5MB · one file</p>
         </label>
 
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="submit"
             disabled={busy}
-            className="rounded-md bg-charge px-4 py-2 text-sm font-medium text-ink disabled:opacity-50"
+            className="rounded-md bg-charge px-4 py-2.5 text-sm font-medium text-ink disabled:opacity-50"
           >
-            {busy ? "Uploading…" : "Upload"}
+            {busy ? "Analyzing…" : "Find subscriptions"}
           </button>
           <a
             href={SAMPLE_CSV_URL}
-            className="text-sm text-charge underline-offset-4 hover:underline"
+            className="text-sm text-mute underline-offset-4 hover:text-charge hover:underline"
           >
             Download sample CSV
           </a>
+          <Link to="/demo" className="text-sm text-mute underline-offset-4 hover:text-white hover:underline">
+            See demo first
+          </Link>
         </div>
       </form>
 
@@ -154,41 +110,8 @@ export function UploadPage() {
         </p>
       ) : null}
 
-      {result ? (
-        <div className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-line bg-panel">
-            <div className="border-b border-line px-5 py-4">
-              <p className="text-sm text-white">
-                Inserted {result.rowsInserted} rows
-                {result.rowsSkipped > 0 ? ` · skipped ${result.rowsSkipped}` : ""}
-              </p>
-              <p className="mt-1 font-mono text-xs text-mute">
-                batch {result.importBatchId}
-              </p>
-            </div>
-            <table className="w-full text-left text-sm">
-              <thead className="font-mono text-xs text-mute">
-                <tr>
-                  <th className="px-5 py-3 font-normal">Raw</th>
-                  <th className="px-5 py-3 font-normal">Normalized</th>
-                  <th className="px-5 py-3 font-normal">Category</th>
-                  <th className="px-5 py-3 font-normal">Rows</th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.preview.map((row) => (
-                  <tr key={row.merchantNorm} className="border-t border-line">
-                    <td className="px-5 py-3 text-mute">{row.merchantRaw}</td>
-                    <td className="px-5 py-3 text-white">{row.merchantNorm}</td>
-                    <td className="px-5 py-3 text-mute">{row.category ?? "—"}</td>
-                    <td className="px-5 py-3 font-mono text-mute">{row.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <SubscriptionsTable rows={result.subscriptions} />
-        </div>
+      {busy ? (
+        <p className="font-mono text-xs text-mute">Parsing, inserting, running detection…</p>
       ) : null}
     </section>
   );

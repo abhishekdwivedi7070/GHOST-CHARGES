@@ -47,7 +47,22 @@ export type UploadResponse = {
   subscriptions: DetectedSubscription[];
 };
 
+export type SubscriptionsResponse = {
+  importBatchId: string;
+  count: number;
+  subscriptions: DetectedSubscription[];
+};
+
 export const SAMPLE_CSV_URL = `${API_URL}/sample.csv`;
+
+export async function fetchSubscriptions(batchId: string): Promise<SubscriptionsResponse> {
+  const response = await fetch(`${API_URL}/subscriptions/${batchId}`);
+  const data = (await response.json()) as SubscriptionsResponse & { error?: string };
+  if (!response.ok) {
+    throw new Error(data.error ?? `Could not load batch (${response.status})`);
+  }
+  return data;
+}
 
 export async function uploadCsv(file: File): Promise<UploadResponse> {
   const body = new FormData();
