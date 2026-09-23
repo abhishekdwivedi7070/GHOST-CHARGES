@@ -2,11 +2,54 @@ import { parse } from "csv-parse/sync";
 import { HttpError } from "../http.js";
 import { normalizeMerchant } from "./normalizeMerchant.js";
 
-const DATE_KEYS = ["date", "txn_date", "transaction_date"];
-const DESC_KEYS = ["description", "merchant", "merchant_raw"];
-const AMOUNT_KEYS = ["amount"];
-const CATEGORY_KEYS = ["category"];
+const DATE_HEADERS = [
+  "date",
+  "txn date",
+  "transaction date",
+  "tran date",
+  "trans date",
+  "posting date",
+  "value date",
+  "value dt",
+];
+const DESC_HEADERS = [
+  "description",
+  "narration",
+  "particulars",
+  "transaction remarks",
+  "remarks",
+  "details",
+  "narrative",
+  "merchant",
+  "merchant raw",
+  "transaction details",
+];
+const AMOUNT_HEADERS = ["amount", "transaction amount", "txn amount"];
+const DEBIT_HEADERS = [
+  "withdrawal amt",
+  "withdrawal amount",
+  "withdrawal",
+  "debit amount",
+  "debit",
+  "dr",
+];
+const CATEGORY_HEADERS = ["category"];
 const MAX_ROWS = 20_000;
+
+const MONTHS: Record<string, string> = {
+  jan: "01",
+  feb: "02",
+  mar: "03",
+  apr: "04",
+  may: "05",
+  jun: "06",
+  jul: "07",
+  aug: "08",
+  sep: "09",
+  oct: "10",
+  nov: "11",
+  dec: "12",
+};
 
 export type ParsedTransaction = {
   txnDate: string;
@@ -26,14 +69,62 @@ export type ParseResult = {
   skipped: SkippedRow[];
 };
 
-function pick(record: Record<string, string>, keys: string[]): string {
-  for (const key of keys) {
-    const value = record[key];
-    if (value !== undefined && value.trim() !== "") {
-      return value.trim();
+const TYPE_HEADERS = ["dr cr", "txn type", "transaction type", "type"];
+
+type ColumnMap = {
+  date: number;
+  description: number;
+  amount: number | null;
+  debit: number | null;
+  type: number | null;
+  category: number | null;
+  dateOrder: "dmy" | "mdy";
+};
+
+function normalizeHeader(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function findHeaderIndex(headers: string[], candidates: string[]): number | null {
+  for (const candidate of candidates) {
+    const index = headers.findIndex(
+      (header) => header === candidate || header.startsWith(`${candidate} `),
+    );
+    if (index >= 0) {
+      return index;
     }
   }
-  return "";
+  return null;
+}
+
+function mapColumns(cells: string[]): ColumnMap | null {
+  const headers = cells.map(normalizeHeader);
+  const date = findHeaderIndex(headers, DATE_HEADERS);
+  const description = findHeaderIndex(headers, DESC_HEADERS);
+  const amount = findHeaderIndex(headers, AMOUNT_HEADERS);
+  const debit = findHeaderIndex(headers, DEBIT_HEADERS);
+  const type = findHeaderIndex(headers, TYPE_HEADERS);
+  const category = findHeaderIndex(headers, CATEGORY_HEADERS);
+
+  if (date === null || description === null || (amount === null && debit === null)) {
+    return null;
+  }
+
+  const indianLayout =
+    debit !== null ||
+    type !== null ||
+    headers.some((header) => header.includes("narration")) ||
+    (headers.includes("transaction date") && headers.includes("value date"));
+
+  return {
+    date,
+    description,
+    amount,
+    debit,
+    type,
+    category,
+    dateOrder: indianLayout ? "dmy" : "mdy",
+  };
 }
 
 function isValidIsoDate(iso: string): boolean {
@@ -50,23 +141,59 @@ function isValidIsoDate(iso: string): boolean {
   );
 }
 
-function parseDate(raw: string): string | null {
-  const value = raw.trim();
+function expandYear(year: string): string {
+  if (year.length === 4) return year;
+  const n = Number(year);
+  return String(n >= 80 ? 1900 + n : 2000 + n);
+}
+
+function parseDate(raw: string, order: "dmy" | "mdy"): string | null {
+  const value = raw
+    .trim()
+    .replace(/\s+\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?.*$/, "")
+    .trim();
   if (isValidIsoDate(value)) {
     return value;
   }
 
-  const mdy = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value);
-  if (!mdy) {
+  const named = /^(\d{1,2})[-/]([A-Za-z]{3})[-/](\d{2}|\d{4})$/.exec(value);
+  if (named) {
+    const month = MONTHS[named[2].toLowerCase()];
+    if (!month) return null;
+    const iso = `${expandYear(named[3])}-${month}-${named[1].padStart(2, "0")}`;
+    return isValidIsoDate(iso) ? iso : null;
+  }
+
+  const numeric = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/.exec(value);
+  if (!numeric) {
     return null;
   }
 
-  const iso = `${mdy[3]}-${mdy[1].padStart(2, "0")}-${mdy[2].padStart(2, "0")}`;
+  const first = Number(numeric[1]);
+  const second = Number(numeric[2]);
+  let day: number;
+  let month: number;
+
+  if (first > 12 && second <= 12) {
+    day = first;
+    month = second;
+  } else if (second > 12 && first <= 12) {
+    month = first;
+    day = second;
+  } else if (order === "dmy") {
+    day = first;
+    month = second;
+  } else {
+    month = first;
+    day = second;
+  }
+
+  const iso = `${expandYear(numeric[3])}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   return isValidIsoDate(iso) ? iso : null;
 }
 
 function parseAmount(raw: string): string | null {
-  let value = raw.trim().replace(/[$,\s]/g, "");
+  let value = raw.trim().replace(/[₹$,\s]/g, "");
   if (!value) return null;
 
   const wrapped = /^\((.+)\)$/.exec(value);
@@ -82,20 +209,46 @@ function parseAmount(raw: string): string | null {
   return Math.abs(amount).toFixed(2);
 }
 
+function cell(row: string[], index: number | null): string {
+  if (index === null) return "";
+  return (row[index] ?? "").trim();
+}
+
 export function parseBankCsv(buffer: Buffer): ParseResult {
-  let records: Record<string, string>[];
+  let table: string[][];
 
   try {
-    records = parse(buffer, {
-      columns: (header: string[]) => header.map((column) => column.trim().toLowerCase()),
+    table = parse(buffer, {
       skip_empty_lines: true,
       trim: true,
       bom: true,
       relax_column_count: true,
-    }) as Record<string, string>[];
+      relax_quotes: true,
+    }) as string[][];
   } catch {
     throw new HttpError(400, "Could not parse that CSV. Check the file is valid text.");
   }
+
+  let headerIndex = -1;
+  let columns: ColumnMap | null = null;
+
+  for (let i = 0; i < Math.min(table.length, 40); i += 1) {
+    const mapped = mapColumns(table[i] ?? []);
+    if (mapped) {
+      headerIndex = i;
+      columns = mapped;
+      break;
+    }
+  }
+
+  if (headerIndex < 0 || !columns) {
+    throw new HttpError(
+      400,
+      "Could not find a transaction table. Need a date column, a description/narration column, and an amount or withdrawal/debit column.",
+    );
+  }
+
+  const records = table.slice(headerIndex + 1);
 
   if (records.length === 0) {
     throw new HttpError(400, "CSV has a header but no data rows.");
@@ -105,34 +258,28 @@ export function parseBankCsv(buffer: Buffer): ParseResult {
     throw new HttpError(400, `CSV is too large. Max ${MAX_ROWS} data rows.`);
   }
 
-  const sample = records[0];
-  const hasDate = DATE_KEYS.some((key) => key in sample);
-  const hasDesc = DESC_KEYS.some((key) => key in sample);
-  const hasAmount = AMOUNT_KEYS.some((key) => key in sample);
-
-  if (!hasDate || !hasDesc || !hasAmount) {
-    throw new HttpError(
-      400,
-      "Expected columns: date, description, amount. Optional: category.",
-    );
-  }
-
   const rows: ParsedTransaction[] = [];
   const skipped: SkippedRow[] = [];
 
   records.forEach((record, index) => {
-    const line = index + 2;
-    const rawDate = pick(record, DATE_KEYS);
-    const merchantRaw = pick(record, DESC_KEYS);
-    const rawAmount = pick(record, AMOUNT_KEYS);
-    const categoryFromCsv = pick(record, CATEGORY_KEYS) || null;
+    const line = headerIndex + index + 2;
+    const rawDate = cell(record, columns.date);
+    const merchantRaw = cell(record, columns.description);
+    const debitCredit = cell(record, columns.type).toUpperCase();
+    const rawAmount = cell(record, columns.amount) || cell(record, columns.debit);
+    const categoryFromCsv = cell(record, columns.category) || null;
 
     if (!rawDate && !merchantRaw && !rawAmount) {
       skipped.push({ line, reason: "empty row" });
       return;
     }
 
-    const txnDate = parseDate(rawDate);
+    if (debitCredit === "CR" || debitCredit === "CREDIT") {
+      skipped.push({ line, reason: "credit (not a charge)" });
+      return;
+    }
+
+    const txnDate = parseDate(rawDate, columns.dateOrder);
     if (!txnDate) {
       skipped.push({ line, reason: `invalid date "${rawDate}"` });
       return;
@@ -145,7 +292,7 @@ export function parseBankCsv(buffer: Buffer): ParseResult {
 
     const amount = parseAmount(rawAmount);
     if (!amount) {
-      skipped.push({ line, reason: `invalid amount "${rawAmount}"` });
+      skipped.push({ line, reason: "no withdrawal/debit amount" });
       return;
     }
 

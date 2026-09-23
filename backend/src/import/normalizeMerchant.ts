@@ -1,27 +1,35 @@
 const ALIASES: { test: RegExp; name: string }[] = [
-  { test: /^(AMZN|AMAZON)\b/, name: "AMAZON" },
-  { test: /^NETFLIX\b/, name: "NETFLIX" },
-  { test: /^SPOTIFY\b/, name: "SPOTIFY" },
-  { test: /^HULU\b/, name: "HULU" },
-  { test: /^DISNEY\b/, name: "DISNEY" },
-  { test: /^HBO\b/, name: "HBO" },
-  { test: /^YOUTUBE\b/, name: "YOUTUBE" },
-  { test: /^ADOBE\b/, name: "ADOBE" },
-  { test: /^MICROSOFT\b/, name: "MICROSOFT" },
-  { test: /^GITHUB\b/, name: "GITHUB" },
-  { test: /^PLANET FITNESS\b/, name: "PLANET FITNESS" },
-  { test: /^LA FITNESS\b/, name: "LA FITNESS" },
-  { test: /^PELOTON\b/, name: "PELOTON" },
-  { test: /^STARBUCKS\b/, name: "STARBUCKS" },
-  { test: /^UBER\b/, name: "UBER" },
-  { test: /^LYFT\b/, name: "LYFT" },
-  { test: /^OPENAI\b/, name: "OPENAI" },
-  { test: /^DOORDASH\b/, name: "DOORDASH" },
-  { test: /^APPLE\b/, name: "APPLE" },
-  { test: /^GOOGLE\b/, name: "GOOGLE" },
-  { test: /^DROPBOX\b/, name: "DROPBOX" },
-  { test: /^SLACK\b/, name: "SLACK" },
-  { test: /^ZOOM\b/, name: "ZOOM" },
+  { test: /\b(AMZN|AMAZON)\b/, name: "AMAZON" },
+  { test: /\bNETFLIX\b/, name: "NETFLIX" },
+  { test: /\bSPOTIFY\b/, name: "SPOTIFY" },
+  { test: /\bHULU\b/, name: "HULU" },
+  { test: /\bDISNEY\b/, name: "DISNEY" },
+  { test: /\bHBO\b/, name: "HBO" },
+  { test: /\bYOUTUBE\b/, name: "YOUTUBE" },
+  { test: /\bADOBE\b/, name: "ADOBE" },
+  { test: /\bMICROSOFT\b/, name: "MICROSOFT" },
+  { test: /\bGITHUB\b/, name: "GITHUB" },
+  { test: /\bPLANET FITNESS\b/, name: "PLANET FITNESS" },
+  { test: /\bLA FITNESS\b/, name: "LA FITNESS" },
+  { test: /\bPELOTON\b/, name: "PELOTON" },
+  { test: /\bSTARBUCKS\b/, name: "STARBUCKS" },
+  { test: /\bUBER\b/, name: "UBER" },
+  { test: /\bLYFT\b/, name: "LYFT" },
+  { test: /\bRAPIDO\b/, name: "RAPIDO" },
+  { test: /\bOPENAI\b/, name: "OPENAI" },
+  { test: /\bDOORDASH\b/, name: "DOORDASH" },
+  { test: /\bAPPLE\b/, name: "APPLE" },
+  { test: /\bGOOGLE\b/, name: "GOOGLE" },
+  { test: /\bDROPBOX\b/, name: "DROPBOX" },
+  { test: /\bSLACK\b/, name: "SLACK" },
+  { test: /\bZOOM\b/, name: "ZOOM" },
+  { test: /\bAIRTEL\b/, name: "AIRTEL" },
+  { test: /\bJIO\b/, name: "JIO" },
+  { test: /\bKREDITBEE\b/, name: "KREDITBEE" },
+  { test: /\bLAZYPAY\b/, name: "LAZYPAY" },
+  { test: /\bPAYU\b/, name: "PAYU" },
+  { test: /\bZOMATO\b/, name: "ZOMATO" },
+  { test: /\bBLINKIT\b/, name: "BLINKIT" },
 ];
 
 /**
@@ -31,9 +39,21 @@ const ALIASES: { test: RegExp; name: string }[] = [
 export function normalizeMerchant(raw: string): string {
   let value = raw.normalize("NFKC").trim().toUpperCase();
 
+  // Indian UPI: "UPI/Rapido/509119121061/NA" → RAPIDO
+  const upi = /^UPI[/\-]([^/\-]+)(?:[/\-].*)?$/.exec(value);
+  if (upi?.[1]) {
+    value = upi[1];
+  }
+
+  value = value.replace(/\bSENT USING PAYT\w*\b/g, " ");
+  value = value.replace(/\bPAYMENT FROM PH\w*\b/g, " ");
+  value = value.replace(/\bNA\b/g, " ");
+
   // Order IDs and store codes: *2K3F9, #12345
   value = value.replace(/\*[A-Z0-9]+/g, " ");
   value = value.replace(/#\s*[A-Z0-9]+/g, " ");
+  value = value.replace(/\b\d{6,}\w*/g, " ");
+  value = value.replace(/\b(PCD|CYBS|UPI)\b/g, " ");
 
   // Punctuation → space (keep letters, numbers, &, spaces)
   value = value.replace(/[^A-Z0-9&\s]/g, " ");
